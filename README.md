@@ -27,11 +27,18 @@ while holding down the modifier keys.
 
 ### Supported versions
 
-As of May 2024, this application works on macOS versions 10.9–14.0.
+This build requires **macOS 10.13 (High Sierra) or later** and ships as a
+universal binary (Apple silicon and Intel). It has been built and tested on
+macOS 15 (Sequoia).
+
+Two features degrade gracefully on older systems: the menu-bar glyph falls
+back to a text symbol before macOS 11, and *Launch at login* uses a per-user
+launch agent instead of the system login-item service before macOS 13.
 
 ### Installation
 
-You may download the binary [here](https://github.com/emreyolcu/drag-scroll/releases/download/v1.3.1/DragScroll.zip).
+You may download the latest binary from the
+[releases page](https://github.com/DrummerKH/drag-scroll/releases/latest).
 DragScroll requires access to accessibility features.
 Upon startup, if it does not have access, it will prompt you and wait.
 You do not need to restart the application
