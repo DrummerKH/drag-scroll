@@ -1,26 +1,27 @@
 # DragScroll
 
-[![Downloads](https://img.shields.io/github/downloads/emreyolcu/drag-scroll/total.svg)](https://github.com/emreyolcu/drag-scroll/releases)
+[![Downloads](https://img.shields.io/github/downloads/DrummerKH/drag-scroll/total.svg)](https://github.com/DrummerKH/drag-scroll/releases)
 
 This small utility provides a drag-to-scroll mechanism for macOS.
-It runs in the background and does not interfere until
-either a mouse button is pressed (button 5 by default)
-or some modifier keys are held down (the Shift key by default),
-both of which activate drag scrolling mode.
+It runs in the background and does not interfere until you activate
+drag scrolling, which you can do in any of three ways:
+by pressing a mouse button (button 5 by default),
+by holding a set of modifier keys (Shift by default),
+or by holding an optional activation key.
 In this mode, the mouse cursor is locked in place
 and mouse movement is interpreted as scrolling.
-Pressing the mouse button again or releasing the modifier keys
-deactivates drag scrolling mode.
+Activating again (or releasing the keys) deactivates drag scrolling mode.
 
 This application is especially useful with a trackball:
 you can activate drag scrolling and roll the ball
 to quickly scroll through a large website or a document.
 It also works with the trackpad, for instance allowing you
-to drag scroll with a single finger
-while holding down the modifier keys.
+to drag scroll with a single finger while holding down the modifier keys.
+
+Everything is configured from a menu-bar popover — see [Settings](#settings).
 
 > [!NOTE]
-> The two means of activation operate independently of each other:
+> The activation methods operate independently of each other:
 > if you first press the mouse button to activate
 > and then press and release the modifier keys,
 > drag scrolling mode stays active until you press the mouse button again.
@@ -78,84 +79,7 @@ Changes take effect immediately — no restart required.
   stop, like the mouse button). Applies only to the activation key; modifier
   keys always work as hold.
 
-All settings are stored in the usual preferences domain, so the
-`defaults` commands below still work and stay in sync with the window.
-
-### Configuration via the command line
-
-- **Mouse button**:
-  The default mouse button for toggling drag scrolling is button 5.
-  If you want to use a different mouse button, run the following command,
-  replacing `BUTTON` with a button number between 3 and 32.
-  (Button numbers are one-based,
-  so 1 and 2 represent left and right mouse buttons.
-  You cannot use those in DragScroll.)
-
-  ```
-  defaults write com.emreyolcu.DragScroll button -int BUTTON
-  ```
-
-  If you do not want to use mouse buttons with DragScroll,
-  set `button` to 0.
-
-- **Modifier keys**:
-  The default modifier key for activating drag scrolling is the Shift key.
-  If you want to use a different set of modifiers, run the following command,
-  replacing `[KEYS...]` by a space-separated set of modifier keys
-  chosen from among `capslock`, `shift`, `control`, `option`, `command`.
-  (Unlike the other modifiers, Caps Lock works as a toggle.)
-
-  ```
-  defaults write com.emreyolcu.DragScroll keys -array [KEYS...]
-  ```
-
-  For instance, if you want to activate drag scrolling
-  by holding down Control and Command together, run:
-
-  ```
-  defaults write com.emreyolcu.DragScroll keys -array control command
-  ```
-
-  If you do not want to use modifier keys with DragScroll,
-  set `keys` to an empty array:
-
-  ```
-  defaults write com.emreyolcu.DragScroll keys -array
-  ```
-
-- **Scrolling speed:**
-  If you want to change scrolling speed, run the following command,
-  replacing `SPEED` with a small number (default is 3).
-  This number may even be negative, which inverts scrolling direction.
-
-  ```
-  defaults write com.emreyolcu.DragScroll speed -int SPEED
-  ```
-
-- **Activation key:**
-  The virtual key code of a key that, held together with the modifier keys,
-  activates drag scrolling. This is normally set from the Settings window.
-  Set it to `-1` (or delete it) to disable.
-
-  ```
-  defaults write com.emreyolcu.DragScroll keyCode -int KEYCODE
-  ```
-
-- **Activation key behavior:**
-  Whether the activation key toggles drag scrolling instead of holding it.
-  Set to `1` for toggle (press on / press off) or `0` for hold (the default).
-
-  ```
-  defaults write com.emreyolcu.DragScroll keyToggle -int 1
-  ```
-
-> [!WARNING]
-> If you set a preference to an unexpected value (e.g., of the wrong type),
-> then its default value is used as a fallback.
-
-Settings changed from the menu bar window take effect immediately.
-If you edit preferences with `defaults`, restart the application
-(or reopen Settings) for the changes to take effect.
+Settings are saved automatically and persist across restarts.
 
 ### Uninstallation
 
