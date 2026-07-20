@@ -58,8 +58,13 @@ preferences store.
 three independent booleans — `BUTTON_ENABLED` (mouse-button toggle),
 `KEY_ENABLED` (modifier-hold, used only when no activation key is set), and
 `KEYDOWN_ENABLED` (the activation key, hold or toggle). When any is on,
-`kCGEventMouseMoved` events are consumed and re-emitted as scroll-wheel
-events while the cursor is warped back in place (`CGWarpMouseCursorPosition`).
+`kCGEventMouseMoved` events are consumed and re-emitted as pixel-unit
+scroll-wheel events while the cursor is warped back in place
+(`CGWarpMouseCursorPosition`). Each axis delta is passed through
+`accelScroll`, a power-curve acceleration (normalized at `SCROLL_REF`, steepness
+`SCROLL_GAMMA`) that keeps `SPEED` as an overall multiplier — small movements
+scroll gently (important for line-based apps like terminals) while fast flicks
+scroll further.
 
 Config lives entirely in globals (`BUTTON`, `KEYS`, `SPEED`, `KEYCODE`,
 `KEY_TOGGLE`, …). `loadConfiguration()` reads them from preferences;

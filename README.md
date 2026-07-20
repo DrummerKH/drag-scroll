@@ -66,8 +66,10 @@ versions). You can also add it manually under
 Click the menu bar icon to configure the application from the popover.
 Changes take effect immediately — no restart required.
 
-- **Scrolling speed:** a small number (default 3); negative values invert
-  the scrolling direction.
+- **Scrolling speed:** overall multiplier for scrolling (default 3); negative
+  values invert the direction. Scrolling uses an acceleration curve, so slow,
+  precise movements stay gentle (nicer in line-based apps like terminals)
+  while fast flicks cover more distance.
 - **Mouse button:** the button that toggles drag scrolling (3–32), or *Off*.
 - **Modifier keys:** the modifiers held to activate drag scrolling
   (Caps Lock, Shift, Control, Option, Command).
@@ -112,6 +114,11 @@ even though you have previously granted it access, try the following:
 2. Remove `DragScroll` from the list and add it again.
 
 ### History
+
+#### v1.4.1 (2026-07-20)
+
+- Scroll with an acceleration curve so slow movements stay gentle (better in
+  terminals and other line-based apps) while fast flicks scroll further.
 
 #### v1.4.0 (2026-07-20)
 

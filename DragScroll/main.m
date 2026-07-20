@@ -2,6 +2,7 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <ServiceManagement/ServiceManagement.h>
 #import <Carbon/Carbon.h>
+#import <math.h>
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -12,6 +13,14 @@
 #define DEFAULT_SPEED 3
 #define MAX_KEY_COUNT 5
 #define NO_KEYCODE (-1)
+
+// Scroll acceleration curve. Output is normalized so that a movement of
+// SCROLL_REF pixels/event yields the same amount as the old linear SPEED*delta,
+// while smaller movements scroll gently (nice in line-based apps like
+// terminals) and larger flicks scroll more. Raising SCROLL_GAMMA makes the
+// curve steeper; SCROLL_REF sets where it matches the linear behavior.
+#define SCROLL_REF   6.0
+#define SCROLL_GAMMA 1.7
 
 #define EQ(x, y) (CFStringCompare(x, y, kCFCompareCaseInsensitive) == kCFCompareEqualTo)
 
@@ -85,6 +94,21 @@ static void maybeSetPointAndWarpMouse(bool thisEnabled, bool otherEnabled, CGEve
     }
 }
 
+// Maps a raw per-event mouse delta to an accelerated scroll amount, carrying
+// the sign of the old linear -SPEED * delta (so a negative SPEED still inverts).
+static int accelScroll(int delta)
+{
+    if (delta == 0 || SPEED == 0)
+        return 0;
+    double a = fabs((double)delta);
+    double mag = fabs((double)SPEED) * SCROLL_REF * pow(a / SCROLL_REF, SCROLL_GAMMA);
+    long r = lround(mag);
+    if (r < 1)  // never stall on a real movement
+        r = 1;
+    int sign = ((SPEED < 0) ^ (delta < 0)) ? 1 : -1;
+    return sign * (int)r;
+}
+
 static CGEventRef tapCallback(CGEventTapProxy proxy,
                               CGEventType type, CGEventRef event, void *userInfo)
 {
@@ -102,7 +126,7 @@ static CGEventRef tapCallback(CGEventTapProxy proxy,
         int deltaX = (int)CGEventGetIntegerValueField(event, kCGMouseEventDeltaX);
         int deltaY = (int)CGEventGetIntegerValueField(event, kCGMouseEventDeltaY);
         CGEventRef scrollWheelEvent = CGEventCreateScrollWheelEvent(
-            NULL, kCGScrollEventUnitPixel, 2, -SPEED * deltaY, -SPEED * deltaX
+            NULL, kCGScrollEventUnitPixel, 2, accelScroll(deltaY), accelScroll(deltaX)
         );
         if (KEY_ENABLED)
             CGEventSetFlags(scrollWheelEvent, CGEventGetFlags(event) & ~KEYS);
