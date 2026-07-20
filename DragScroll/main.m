@@ -353,6 +353,74 @@ static bool installTap(void)
 }
 
 // ---------------------------------------------------------------------------
+// Dedicated tap thread
+// ---------------------------------------------------------------------------
+//
+// The event tap is serviced on its own high-priority run loop rather than the
+// main one, so AppKit work (popover drawing, status-item updates, preference
+// writes) can never delay event handling. On the main run loop a brief stall
+// makes activation engage a beat late — most noticeable with a keyboard
+// activation key, where the first mouse movements slip through un-scrolled.
+//
+// All tap lifecycle and configuration mutation is marshaled onto this thread
+// via performOnTapThread(), so the config globals the callback reads are only
+// ever touched here — installTap()/removeTap() rely on CFRunLoopGetCurrent()
+// being this thread's run loop.
+
+static CFRunLoopRef gTapRunLoop;
+static dispatch_semaphore_t gTapReady;
+
+@interface TapThread : NSThread
+@end
+
+@implementation TapThread
+- (void)main
+{
+    gTapRunLoop = CFRunLoopGetCurrent();
+    // Keep the run loop alive even while no tap source is installed (e.g.
+    // before Accessibility access is granted): a run loop with no sources
+    // returns immediately from CFRunLoopRun().
+    NSPort *keepAlive = [NSMachPort port];
+    [[NSRunLoop currentRunLoop] addPort:keepAlive forMode:NSDefaultRunLoopMode];
+    dispatch_semaphore_signal(gTapReady);
+    while (!self.isCancelled) {
+        @autoreleasepool {
+            CFRunLoopRun();
+        }
+    }
+}
+@end
+
+static void startTapThread(void)
+{
+    gTapReady = dispatch_semaphore_create(0);
+    TapThread *thread = [[TapThread alloc] init];
+    thread.name = @"com.emreyolcu.DragScroll.tap";
+    thread.qualityOfService = NSQualityOfServiceUserInteractive;
+    [thread start];
+    dispatch_semaphore_wait(gTapReady, DISPATCH_TIME_FOREVER);  // publish gTapRunLoop
+}
+
+// Runs `block` synchronously on the tap thread's run loop (or inline if we are
+// already on it / it isn't up yet). Safe from the main thread: the tap thread
+// never blocks on the main thread, so there is no deadlock.
+static void performOnTapThread(void (^block)(void))
+{
+    CFRunLoopRef rl = gTapRunLoop;
+    if (!rl || CFRunLoopGetCurrent() == rl) {
+        block();
+        return;
+    }
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
+        block();
+        dispatch_semaphore_signal(done);
+    });
+    CFRunLoopWakeUp(rl);
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+}
+
+// ---------------------------------------------------------------------------
 // Key labels
 // ---------------------------------------------------------------------------
 
@@ -482,6 +550,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 
     loadConfiguration();
     [self setUpStatusItem];
+    startTapThread();
 
     CFDictionaryRef options = CFDictionaryCreate(
         kCFAllocatorDefault,
@@ -492,7 +561,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     CFRelease(options);
 
     if (TRUSTED) {
-        installTap();
+        performOnTapThread(^{ installTap(); });
     } else {
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDistributedCenter(), &_axObserver,
@@ -513,7 +582,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
             CFNotificationCenterGetDistributedCenter(),
             observer, AX_NOTIFICATION, NULL
         );
-        installTap();
+        performOnTapThread(^{ installTap(); });
         [(AppDelegate *)[NSApp delegate] updateMenuState];
     }
 }
@@ -582,7 +651,9 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 - (void)togglePause:(id)sender
 {
     PAUSED = !PAUSED;
-    BUTTON_ENABLED = KEY_ENABLED = KEYDOWN_ENABLED = SWALLOW_UP = false;
+    performOnTapThread(^{
+        BUTTON_ENABLED = KEY_ENABLED = KEYDOWN_ENABLED = SWALLOW_UP = false;
+    });
     [self updateMenuState];
 }
 
@@ -792,9 +863,11 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 
 - (void)applyChanges
 {
-    loadConfiguration();
-    if (TRUSTED)
-        installTap();
+    performOnTapThread(^{
+        loadConfiguration();
+        if (TRUSTED)
+            installTap();
+    });
     [self updateMenuState];
 }
 
