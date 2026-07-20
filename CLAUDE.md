@@ -62,9 +62,10 @@ three independent booleans — `BUTTON_ENABLED` (mouse-button toggle),
 scroll-wheel events while the cursor is warped back in place
 (`CGWarpMouseCursorPosition`). Each axis delta is passed through
 `accelScroll`, a power-curve acceleration (normalized at `SCROLL_REF`, steepness
-`SCROLL_GAMMA`) that keeps `SPEED` as an overall multiplier — small movements
-scroll gently (important for line-based apps like terminals) while fast flicks
-scroll further.
+the configurable `ACCEL` exponent where `1.0` is linear) that keeps `SPEED` as
+an overall multiplier — small movements scroll gently (important for line-based
+apps like terminals) while fast flicks scroll further. `ACCEL` comes from the
+`acceleration` preference (a double), set via the popover slider.
 
 Config lives entirely in globals (`BUTTON`, `KEYS`, `SPEED`, `KEYCODE`,
 `KEY_TOGGLE`, …). `loadConfiguration()` reads them from preferences;

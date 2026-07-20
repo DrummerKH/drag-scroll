@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 
 APP_NAME="DragScroll"
 BUNDLE_ID="com.emreyolcu.DragScroll"
-VERSION="1.4.1"
-BUILD_NUM="7"
+VERSION="1.4.2"
+BUILD_NUM="8"
 MIN_MACOS="10.13"
 
 BUILD_DIR="build"

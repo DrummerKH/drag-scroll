@@ -17,16 +17,19 @@
 // Scroll acceleration curve. Output is normalized so that a movement of
 // SCROLL_REF pixels/event yields the same amount as the old linear SPEED*delta,
 // while smaller movements scroll gently (nice in line-based apps like
-// terminals) and larger flicks scroll more. Raising SCROLL_GAMMA makes the
-// curve steeper; SCROLL_REF sets where it matches the linear behavior.
-#define SCROLL_REF   6.0
-#define SCROLL_GAMMA 1.7
+// terminals) and larger flicks scroll more. The steepness is the configurable
+// ACCEL exponent: 1.0 means linear (no acceleration).
+#define SCROLL_REF    6.0
+#define DEFAULT_ACCEL 1.7
+#define MIN_ACCEL     1.0
+#define MAX_ACCEL     3.0
 
 #define EQ(x, y) (CFStringCompare(x, y, kCFCompareCaseInsensitive) == kCFCompareEqualTo)
 
 static NSString *const kPrefButton   = @"button";
 static NSString *const kPrefKeys     = @"keys";
 static NSString *const kPrefSpeed    = @"speed";
+static NSString *const kPrefAccel    = @"acceleration";
 static NSString *const kPrefKeyCode   = @"keyCode";
 static NSString *const kPrefKeyLabel  = @"keyLabel";
 static NSString *const kPrefKeyToggle = @"keyToggle";
@@ -59,6 +62,7 @@ static int BUTTON;          // configured button number (0 = off, 3..32)
 static int BUTTON_COMPARE;  // zero-based number the event carries (-1 = off)
 static CGEventFlags KEYS;   // required modifier mask
 static int SPEED;
+static double ACCEL;        // scroll acceleration exponent (1.0 = linear)
 static int KEYCODE;         // activation key virtual keycode (NO_KEYCODE = off)
 static bool KEY_TOGGLE;     // activation key toggles instead of holds
 static bool PAUSED;         // user toggled Pause from the menu
@@ -101,7 +105,7 @@ static int accelScroll(int delta)
     if (delta == 0 || SPEED == 0)
         return 0;
     double a = fabs((double)delta);
-    double mag = fabs((double)SPEED) * SCROLL_REF * pow(a / SCROLL_REF, SCROLL_GAMMA);
+    double mag = fabs((double)SPEED) * SCROLL_REF * pow(a / SCROLL_REF, ACCEL);
     long r = lround(mag);
     if (r < 1)  // never stall on a real movement
         r = 1;
@@ -196,6 +200,20 @@ static bool getIntPreference(CFStringRef key, int *valuePtr)
     return got;
 }
 
+static bool getDoublePreference(CFStringRef key, double *valuePtr)
+{
+    CFNumberRef number = (CFNumberRef)CFPreferencesCopyAppValue(
+        key, kCFPreferencesCurrentApplication
+    );
+    bool got = false;
+    if (number) {
+        if (CFGetTypeID(number) == CFNumberGetTypeID())
+            got = CFNumberGetValue(number, kCFNumberDoubleType, valuePtr);
+        CFRelease(number);
+    }
+    return got;
+}
+
 static bool getArrayPreference(CFStringRef key, CFStringRef *values, int *count, int maxCount)
 {
     CFArrayRef array = (CFArrayRef)CFPreferencesCopyAppValue(
@@ -276,6 +294,11 @@ static void loadConfiguration(void)
 
     if (!getIntPreference(CFSTR("speed"), &SPEED))
         SPEED = DEFAULT_SPEED;
+
+    if (!getDoublePreference(CFSTR("acceleration"), &ACCEL))
+        ACCEL = DEFAULT_ACCEL;
+    if (ACCEL < MIN_ACCEL) ACCEL = MIN_ACCEL;
+    if (ACCEL > MAX_ACCEL) ACCEL = MAX_ACCEL;
 
     if (!getIntPreference(CFSTR("keyCode"), &KEYCODE) || KEYCODE < 0)
         KEYCODE = NO_KEYCODE;
@@ -437,6 +460,8 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     NSButton     *_pauseButton;
     NSTextField  *_speedField;
     NSStepper    *_speedStepper;
+    NSSlider     *_accelSlider;
+    NSTextField  *_accelValue;
     NSPopUpButton *_buttonPopup;
     NSButton     *_modifierChecks[5];
     NSButton     *_recordButton;
@@ -582,7 +607,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 
 - (NSView *)buildContentView
 {
-    NSRect frame = NSMakeRect(0, 0, 460, 500);
+    NSRect frame = NSMakeRect(0, 0, 460, 544);
     NSView *root = [[NSView alloc] initWithFrame:frame];
 
     CGFloat W = frame.size.width;
@@ -624,6 +649,23 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     _speedField.action = @selector(speedFieldChanged:);
     [root addSubview:_speedField];
     [root addSubview:[self labelWithString:@"negative inverts scroll direction"
+                                     frame:NSMakeRect(labelX, y - 22, W - 40, 16) bold:NO]];
+    y -= 58;
+
+    // -- Acceleration --
+    [root addSubview:[self labelWithString:@"Acceleration:"
+                                     frame:NSMakeRect(labelX, y, 120, 20) bold:NO]];
+    _accelSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(ctrlX, y - 1, ctrlW - 46, 22)];
+    _accelSlider.minValue = MIN_ACCEL;
+    _accelSlider.maxValue = MAX_ACCEL;
+    _accelSlider.continuous = YES;
+    _accelSlider.target = self;
+    _accelSlider.action = @selector(accelChanged:);
+    [root addSubview:_accelSlider];
+    _accelValue = [self labelWithString:@"" frame:NSMakeRect(ctrlX + ctrlW - 40, y, 40, 18) bold:NO];
+    _accelValue.alignment = NSTextAlignmentRight;
+    [root addSubview:_accelValue];
+    [root addSubview:[self labelWithString:@"1.0 = linear (off); higher is gentler when slow, faster when flicking"
                                      frame:NSMakeRect(labelX, y - 22, W - 40, 16) bold:NO]];
     y -= 58;
 
@@ -724,6 +766,9 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     _speedStepper.integerValue = SPEED;
     _speedField.integerValue = SPEED;
 
+    _accelSlider.doubleValue = ACCEL;
+    _accelValue.stringValue = [NSString stringWithFormat:@"%.1f", ACCEL];
+
     [_buttonPopup selectItemWithTag:BUTTON];
 
     for (int i = 0; i < MODIFIER_COUNT; i++)
@@ -774,6 +819,14 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 - (void)buttonChanged:(id)sender
 {
     setIntPreference(kPrefButton, (int)_buttonPopup.selectedItem.tag);
+    [self applyChanges];
+}
+
+- (void)accelChanged:(id)sender
+{
+    double value = _accelSlider.doubleValue;
+    setObjectPreference(kPrefAccel, @(value));
+    _accelValue.stringValue = [NSString stringWithFormat:@"%.1f", value];
     [self applyChanges];
 }
 

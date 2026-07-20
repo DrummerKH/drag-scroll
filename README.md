@@ -67,9 +67,10 @@ Click the menu bar icon to configure the application from the popover.
 Changes take effect immediately — no restart required.
 
 - **Scrolling speed:** overall multiplier for scrolling (default 3); negative
-  values invert the direction. Scrolling uses an acceleration curve, so slow,
-  precise movements stay gentle (nicer in line-based apps like terminals)
-  while fast flicks cover more distance.
+  values invert the direction.
+- **Acceleration:** how non-linear the scrolling is (default 1.7). At `1.0` it
+  is linear (off); higher values make slow, precise movements gentler (nicer in
+  line-based apps like terminals) while fast flicks cover more distance.
 - **Mouse button:** the button that toggles drag scrolling (3–32), or *Off*.
 - **Modifier keys:** the modifiers held to activate drag scrolling
   (Caps Lock, Shift, Control, Option, Command).
@@ -114,6 +115,10 @@ even though you have previously granted it access, try the following:
 2. Remove `DragScroll` from the list and add it again.
 
 ### History
+
+#### v1.4.2 (2026-07-20)
+
+- Make scroll acceleration configurable from the popover (1.0 = linear).
 
 #### v1.4.1 (2026-07-20)
 
