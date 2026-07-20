@@ -42,21 +42,39 @@ after you grant it access to accessibility features.
 > for DragScroll while it is running.
 > Otherwise, your mouse might become unresponsive, requiring a reboot to fix.
 
-If you want the application to run automatically when you log in,
-do the following:
+DragScroll shows an icon in the menu bar. Click it to open a popover
+containing all of the settings, along with buttons to temporarily
+**Pause**/**Resume** scrolling or **Quit** the application. The popover also
+shows the current status (Active, Paused, or waiting for Accessibility access).
 
-1. On macOS 13.0 and later, go to `System Settings > General > Login Items`;
-   otherwise, go to `System Preferences > Users & Groups > Login Items`.
-2. Add `DragScroll` to the list.
+To run the application automatically when you log in, open the popover and
+turn on **Launch DragScroll at login** (this uses the system login-item
+service on macOS 13.0 and later, and a per-user launch agent on older
+versions). You can also add it manually under
+`System Settings > General > Login Items`.
 
-If you want to quit the application, either run `killall DragScroll`
-or do the following:
+### Settings
 
-1. Launch `Activity Monitor`.
-2. Search for `DragScroll` and select it.
-3. Click the stop button in the upper-left corner and choose Quit.
+Click the menu bar icon to configure the application from the popover.
+Changes take effect immediately — no restart required.
 
-### Configuration
+- **Scrolling speed:** a small number (default 3); negative values invert
+  the scrolling direction.
+- **Mouse button:** the button that toggles drag scrolling (3–32), or *Off*.
+- **Modifier keys:** the modifiers held to activate drag scrolling
+  (Caps Lock, Shift, Control, Option, Command).
+- **Activation key:** optionally, any single key pressed together with the
+  modifiers above to activate drag scrolling. While the key is used for drag
+  scrolling it is intercepted, so it will not type. Use **Clear** to remove it.
+- **Key behavior:** whether the activation key works as **hold** (scroll while
+  held, stop on release) or **toggle** (press once to start, press again to
+  stop, like the mouse button). Applies only to the activation key; modifier
+  keys always work as hold.
+
+All settings are stored in the usual preferences domain, so the
+`defaults` commands below still work and stay in sync with the window.
+
+### Configuration via the command line
 
 - **Mouse button**:
   The default mouse button for toggling drag scrolling is button 5.
@@ -107,11 +125,30 @@ or do the following:
   defaults write com.emreyolcu.DragScroll speed -int SPEED
   ```
 
+- **Activation key:**
+  The virtual key code of a key that, held together with the modifier keys,
+  activates drag scrolling. This is normally set from the Settings window.
+  Set it to `-1` (or delete it) to disable.
+
+  ```
+  defaults write com.emreyolcu.DragScroll keyCode -int KEYCODE
+  ```
+
+- **Activation key behavior:**
+  Whether the activation key toggles drag scrolling instead of holding it.
+  Set to `1` for toggle (press on / press off) or `0` for hold (the default).
+
+  ```
+  defaults write com.emreyolcu.DragScroll keyToggle -int 1
+  ```
+
 > [!WARNING]
 > If you set a preference to an unexpected value (e.g., of the wrong type),
 > then its default value is used as a fallback.
 
-You should restart the application for these settings to take effect.
+Settings changed from the menu bar window take effect immediately.
+If you edit preferences with `defaults`, restart the application
+(or reopen Settings) for the changes to take effect.
 
 ### Uninstallation
 
@@ -144,6 +181,17 @@ even though you have previously granted it access, try the following:
 2. Remove `DragScroll` from the list and add it again.
 
 ### History
+
+#### v1.4.0 (2026-07-20)
+
+- Add a menu bar icon with a popover holding all settings plus Pause/Resume
+  and Quit, showing the current status.
+- Configure speed, mouse button, modifier keys, and launch-at-login from the
+  popover, with changes applied live.
+- Add an application icon.
+- Allow holding any single key (in addition to modifiers) to activate
+  drag scrolling.
+- Allow the activation key to toggle drag scrolling instead of holding it.
 
 #### v1.3.1 (2024-06-05)
 
