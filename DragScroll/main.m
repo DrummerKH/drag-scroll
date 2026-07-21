@@ -33,6 +33,7 @@ static NSString *const kPrefAccel    = @"acceleration";
 static NSString *const kPrefKeyCode   = @"keyCode";
 static NSString *const kPrefKeyLabel  = @"keyLabel";
 static NSString *const kPrefKeyToggle = @"keyToggle";
+static NSString *const kPrefButtonToggle = @"buttonToggle";
 
 static const CFStringRef AX_NOTIFICATION = CFSTR("com.apple.accessibility.api");
 
@@ -65,6 +66,7 @@ static int SPEED;
 static double ACCEL;        // scroll acceleration exponent (1.0 = linear)
 static int KEYCODE;         // activation key virtual keycode (NO_KEYCODE = off)
 static bool KEY_TOGGLE;     // activation key toggles instead of holds
+static bool BUTTON_TOGGLE;  // activation button toggles instead of holds
 static bool PAUSED;         // user toggled Pause from the menu
 
 static bool BUTTON_ENABLED;
@@ -126,7 +128,11 @@ static CGEventRef tapCallback(CGEventTapProxy proxy,
     if (PAUSED)
         return event;
 
-    if (type == kCGEventMouseMoved && anyEnabled()) {
+    // While an activation button is held, movement arrives as a drag event
+    // (kCGEventOtherMouseDragged) rather than kCGEventMouseMoved, so hold-mode
+    // button activation must treat drags as movement too.
+    if ((type == kCGEventMouseMoved || type == kCGEventOtherMouseDragged)
+        && anyEnabled()) {
         int deltaX = (int)CGEventGetIntegerValueField(event, kCGMouseEventDeltaX);
         int deltaY = (int)CGEventGetIntegerValueField(event, kCGMouseEventDeltaY);
         CGEventRef scrollWheelEvent = CGEventCreateScrollWheelEvent(
@@ -142,8 +148,22 @@ static CGEventRef tapCallback(CGEventTapProxy proxy,
                && BUTTON != 0
                && CGEventGetFlags(event) == 0
                && CGEventGetIntegerValueField(event, kCGMouseEventButtonNumber) == BUTTON_COMPARE) {
-        BUTTON_ENABLED = !BUTTON_ENABLED;
+        if (BUTTON_TOGGLE)
+            BUTTON_ENABLED = !BUTTON_ENABLED;  // press on / press off
+        else
+            BUTTON_ENABLED = true;             // hold to scroll
         maybeSetPointAndWarpMouse(BUTTON_ENABLED, KEY_ENABLED || KEYDOWN_ENABLED, event);
+        event = NULL;
+    } else if (type == kCGEventOtherMouseUp
+               && BUTTON != 0
+               && !BUTTON_TOGGLE
+               && CGEventGetIntegerValueField(event, kCGMouseEventButtonNumber) == BUTTON_COMPARE) {
+        // Hold mode: release ends scrolling. Swallow the up too, so the app
+        // never sees an unpaired button event (the down was swallowed above).
+        if (BUTTON_ENABLED) {
+            BUTTON_ENABLED = false;
+            maybeSetPointAndWarpMouse(BUTTON_ENABLED, KEY_ENABLED || KEYDOWN_ENABLED, event);
+        }
         event = NULL;
     } else if (type == kCGEventFlagsChanged && KEYCODE == NO_KEYCODE && KEYS != 0) {
         KEY_ENABLED = (CGEventGetFlags(event) & KEYS) == KEYS;
@@ -305,6 +325,10 @@ static void loadConfiguration(void)
 
     int toggle;
     KEY_TOGGLE = getIntPreference(CFSTR("keyToggle"), &toggle) && toggle != 0;
+
+    // Button defaults to toggle (its long-standing behavior); users can switch
+    // it to hold. A missing preference means legacy toggle.
+    BUTTON_TOGGLE = !getIntPreference(CFSTR("buttonToggle"), &toggle) || toggle != 0;
 }
 
 static void removeTap(void)
@@ -330,7 +354,9 @@ static bool installTap(void)
 
     CGEventMask events = CGEventMaskBit(kCGEventMouseMoved);
     if (BUTTON != 0)
-        events |= CGEventMaskBit(kCGEventOtherMouseDown);
+        events |= CGEventMaskBit(kCGEventOtherMouseDown)
+                | CGEventMaskBit(kCGEventOtherMouseUp)
+                | CGEventMaskBit(kCGEventOtherMouseDragged);  // movement while the button is held
     if (KEYCODE != NO_KEYCODE)
         events |= CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp);
     else if (KEYS != 0)
@@ -531,6 +557,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     NSSlider     *_accelSlider;
     NSTextField  *_accelValue;
     NSPopUpButton *_buttonPopup;
+    NSButton     *_buttonToggleCheck;
     NSButton     *_modifierChecks[5];
     NSButton     *_recordButton;
     NSButton     *_clearKeyButton;
@@ -678,7 +705,7 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 
 - (NSView *)buildContentView
 {
-    NSRect frame = NSMakeRect(0, 0, 460, 544);
+    NSRect frame = NSMakeRect(0, 0, 460, 578);
     NSView *root = [[NSView alloc] initWithFrame:frame];
 
     CGFloat W = frame.size.width;
@@ -753,7 +780,16 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     _buttonPopup.target = self;
     _buttonPopup.action = @selector(buttonChanged:);
     [root addSubview:_buttonPopup];
-    y -= 44;
+    y -= 30;
+
+    // -- Mouse button behavior --
+    _buttonToggleCheck = [[NSButton alloc] initWithFrame:NSMakeRect(ctrlX, y, ctrlW, 20)];
+    [_buttonToggleCheck setButtonType:NSButtonTypeSwitch];
+    _buttonToggleCheck.title = @"Toggle (off = hold to scroll)";
+    _buttonToggleCheck.target = self;
+    _buttonToggleCheck.action = @selector(buttonToggleChanged:);
+    [root addSubview:_buttonToggleCheck];
+    y -= 34;
 
     // -- Modifier keys --
     [root addSubview:[self labelWithString:@"Modifier keys:"
@@ -841,6 +877,8 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
     _accelValue.stringValue = [NSString stringWithFormat:@"%.1f", ACCEL];
 
     [_buttonPopup selectItemWithTag:BUTTON];
+    _buttonToggleCheck.state = BUTTON_TOGGLE ? NSControlStateValueOn : NSControlStateValueOff;
+    _buttonToggleCheck.enabled = (BUTTON != 0);
 
     for (int i = 0; i < MODIFIER_COUNT; i++)
         _modifierChecks[i].state = (KEYS & MODIFIER_MASKS[i]) ? NSControlStateValueOn
@@ -892,6 +930,13 @@ static void axChanged(CFNotificationCenterRef center, void *observer,
 - (void)buttonChanged:(id)sender
 {
     setIntPreference(kPrefButton, (int)_buttonPopup.selectedItem.tag);
+    _buttonToggleCheck.enabled = (_buttonPopup.selectedItem.tag != 0);
+    [self applyChanges];
+}
+
+- (void)buttonToggleChanged:(id)sender
+{
+    setIntPreference(kPrefButtonToggle, _buttonToggleCheck.state == NSControlStateValueOn ? 1 : 0);
     [self applyChanges];
 }
 

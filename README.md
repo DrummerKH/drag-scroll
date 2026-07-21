@@ -5,7 +5,7 @@
 This small utility provides a drag-to-scroll mechanism for macOS.
 It runs in the background and does not interfere until you activate
 drag scrolling, which you can do in any of three ways:
-by pressing a mouse button (button 5 by default),
+by pressing or holding a mouse button (button 5 by default),
 by holding a set of modifier keys (Shift by default),
 or by holding an optional activation key.
 In this mode, the mouse cursor is locked in place
@@ -71,7 +71,11 @@ Changes take effect immediately — no restart required.
 - **Acceleration:** how non-linear the scrolling is (default 1.7). At `1.0` it
   is linear (off); higher values make slow, precise movements gentler (nicer in
   line-based apps like terminals) while fast flicks cover more distance.
-- **Mouse button:** the button that toggles drag scrolling (3–32), or *Off*.
+- **Mouse button:** the button that activates drag scrolling (3–32), or *Off*.
+- **Button behavior:** whether the mouse button works as **toggle** (press once
+  to start, press again to stop — the default) or **hold** (scroll only while
+  the button is held). Holding is handy when the button is a real mouse button
+  that a trackball's auto-mouse layer should keep alive.
 - **Modifier keys:** the modifiers held to activate drag scrolling
   (Caps Lock, Shift, Control, Option, Command).
 - **Activation key:** optionally, any single key pressed together with the
@@ -115,6 +119,18 @@ even though you have previously granted it access, try the following:
 2. Remove `DragScroll` from the list and add it again.
 
 ### History
+
+#### v1.4.4 (2026-07-21)
+
+- Add a **hold/toggle** option for mouse-button activation (previously the
+  button always toggled). In hold mode, drag scrolling is active only while the
+  button is held — useful when the button is a real mouse button that a
+  trackball's QMK auto-mouse layer should keep alive.
+
+#### v1.4.3 (2026-07-20)
+
+- Service the event tap on a dedicated high-priority thread so heavy main-thread
+  work (popover, status-item updates) can no longer delay activation.
 
 #### v1.4.2 (2026-07-20)
 
